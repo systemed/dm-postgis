@@ -1,30 +1,30 @@
-require 'geo_ruby'
 require 'dm-core'
+require 'dm-migrations'
+require 'dm-postgres-adapter'
+require 'dm-postgis/operators'
+require 'dm-custom-index'
 
 module DataMapper
+
   class Property
-    class DMGeometry < Object
-      include GeoRuby::SimpleFeatures
+    autoload :PostGISGeometry,            'dm-postgis/pg_geometry'
+    autoload :PostGISGeography,           'dm-postgis/pg_geometry'
+  end
 
-      def primitive?(value)
-        value.kind_of? Geometry
-      end
-
-      def dump(value)
-        value.nil? ? nil : value.as_hex_ewkb
-      end
-
-      def valid?(value, negated = false)
-        super || dump(value).kind_of?(::String)
-      end
-
-      def load(value)
-        value.nil? ? nil : Geometry.from_hex_ewkb(value)
-      end
+  module PostGIS
+    def self.included(base)
+      base.extend ClassMethods
+    end
     
-      def typecast_to_primitive(value)
-        load(value)
-      end
-    end # class Text
-  end # module Types
+    module ClassMethods
+      def type_map
+        super.merge(
+                    DataMapper::Property::PostGISGeometry => { :primitive => 'GEOMETRY' },
+                    DataMapper::Property::PostGISGeography => { :primitive => 'GEOGRAPHY' }
+                    ).freeze
+      end # type_map
+    end # module ClassMethods
+  end # module PostGIS
 end # module DataMapper
+
+DataMapper::Adapters::PostgresAdapter.send(:include,DataMapper::PostGIS)
